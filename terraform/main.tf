@@ -47,12 +47,6 @@ resource "google_pubsub_subscription" "pubsub_sub" {
   depends_on           = [google_pubsub_topic.pubsub_topic]
 }
 
-resource "google_storage_bucket_object" "cloudfunction" {
-  name    = var.function_zip
-  bucket  = var.infra_bucket
-  source  = "./${var.function_zip}"
-}
-
 resource "google_cloudfunctions_function" "function" {
   project             = var.project_id
   name                = var.function_name
