@@ -1,4 +1,4 @@
-//
+//create a storage bucket. I think this was here left over from export, but hey ho
 resource "google_storage_bucket" "pluto_bucket" {
   project  = var.project_id
   name     = "${var.project_id}-bucket"
@@ -8,6 +8,7 @@ resource "google_storage_bucket" "pluto_bucket" {
   }
 }
 
+//create an empty dataset in core project to host data feed
 resource "google_bigquery_dataset" "bq_dataset" {
   project                     = var.project_id
   dataset_id                  = "activities"
@@ -17,6 +18,7 @@ resource "google_bigquery_dataset" "bq_dataset" {
   default_table_expiration_ms = 3600000
 }
 
+//create an empty table in core project to host data feed
 resource "google_bigquery_table" "bq_table" {
   project             = var.project_id
   dataset_id          = google_bigquery_dataset.bq_dataset.dataset_id
@@ -33,12 +35,14 @@ EOF
   deletion_protection = false
 }
 
+//create an empty pubsub topic for activity feed to push to
 resource "google_pubsub_topic" "pubsub_topic" {
   project                    = var.project_id
   name                       = "activities"
   message_retention_duration = "86600s"
 }
 
+//pubsub subscription. No longer needed as cloud functions creates its own subscription
 resource "google_pubsub_subscription" "pubsub_sub" {
   project              = var.project_id
   name                 = "activites-catchall"
@@ -47,6 +51,8 @@ resource "google_pubsub_subscription" "pubsub_sub" {
   depends_on           = [google_pubsub_topic.pubsub_topic]
 }
 
+//create cloudfunctions function from a GCP cloud source repo
+//bonus, runs from a sub path in repo, not root
 resource "google_cloudfunctions_function" "function" {
   project             = var.project_id
   name                = var.function_name
@@ -64,6 +70,9 @@ resource "google_cloudfunctions_function" "function" {
   depends_on = [google_pubsub_topic.pubsub_topic]
 }
 
+//create asset feed with output to pubsub topic
+//bonus, record everything GCE related
+//gotcha, NodeGrop exists in GCP gocs, but not available as asset type in terraform
 resource "google_cloud_asset_project_feed" "project_feed" {
   for_each     = var.project_children
   project      = each.value.name
@@ -134,10 +143,11 @@ resource "google_cloud_asset_project_feed" "project_feed" {
   ]
 }
 
-//grant service accent publisher access to core project
+//grant service accent publisher access to parent  project. Allows child projects to send feed to parent project
+//bonus: ony grant publisher, we dont want them seeing into the parent project
 resource "google_pubsub_topic_iam_member" "member" {
   for_each = var.project_children                //my child array of projects
-  project  = var.project_id                      //my core project ID
+  project  = var.project_id                      //my parent project ID
   topic    = google_pubsub_topic.pubsub_topic.id //my generated pubsub topic
   role     = "roles/pubsub.publisher"
   member   = "serviceAccount:service-${each.value.project_number}@gcp-sa-cloudasset.iam.gserviceaccount.com"

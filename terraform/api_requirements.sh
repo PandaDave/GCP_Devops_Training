@@ -1,3 +1,4 @@
+## enables all APIs via script. Not needed, but recorded for learnings sake
 gcloud services enable bigquery.googleapis.com
 gcloud services enable bigquerymigration.googleapis.com
 gcloud services enable bigquerystorage.googleapis.com
@@ -21,7 +22,9 @@ gcloud services enable storage-api.googleapis.com
 gcloud services enable storage-component.googleapis.com
 gcloud services enable storage.googleapis.com
 
+## enable terraform debug logs, so you can actually see whats going on
 export TF_DEBUG=true
 export TF_LOG=terraform.log
 
-terraform apply
+##run apply on this project
+terraform apply --var-file=variables.tfvars
