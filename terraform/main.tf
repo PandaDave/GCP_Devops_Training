@@ -1,5 +1,6 @@
 //
 resource "google_storage_bucket" "pluto_bucket" {
+  project  = var.project_id
   name     = "${var.project_id}-bucket"
   location = var.region
   versioning {
@@ -8,6 +9,7 @@ resource "google_storage_bucket" "pluto_bucket" {
 }
 
 resource "google_bigquery_dataset" "bq_dataset" {
+  project                     = var.project_id
   dataset_id                  = "activities"
   friendly_name               = "activities"
   description                 = "Moonbank activities dataset"
@@ -16,6 +18,7 @@ resource "google_bigquery_dataset" "bq_dataset" {
 }
 
 resource "google_bigquery_table" "bq_table" {
+  project             = var.project_id
   dataset_id          = google_bigquery_dataset.bq_dataset.dataset_id
   table_id            = "resources"
   depends_on          = [google_bigquery_dataset.bq_dataset]
@@ -31,11 +34,13 @@ EOF
 }
 
 resource "google_pubsub_topic" "pubsub_topic" {
+  project                    = var.project_id
   name                       = "activities"
   message_retention_duration = "86600s"
 }
 
 resource "google_pubsub_subscription" "pubsub_sub" {
+  project              = var.project_id
   name                 = "activites-catchall"
   topic                = google_pubsub_topic.pubsub_topic.name
   ack_deadline_seconds = 20
@@ -43,18 +48,21 @@ resource "google_pubsub_subscription" "pubsub_sub" {
 }
 
 resource "google_storage_bucket_object" "cloudfunction" {
-  name   = var.function_zip
-  bucket = var.infra_bucket
-  source = "./${var.function_zip}"
+  name    = var.function_zip
+  bucket  = var.infra_bucket
+  source  = "./${var.function_zip}"
 }
 
 resource "google_cloudfunctions_function" "function" {
+  project             = var.project_id
   name                = var.function_name
   description         = "Capture activities from pubsub and push into BQ"
   runtime             = "python39"
   available_memory_mb = 128
-  source_repository   = "https://source.cloud.google.com/mb-devops-user7/GCP_Devops_Training/+/main:cloudfunction/"
-  timeout             = 60
+  source_repository {
+    url = "https://source.developers.google.com/projects/mb-devops-user7/repos/GCP_Devops_Training/moveable-aliases/main/paths/cloudfunction"
+  }
+  timeout = 60
   event_trigger {
     resource   = google_pubsub_topic.pubsub_topic.name
     event_type = "google.pubsub.topic.publish"
@@ -64,7 +72,7 @@ resource "google_cloudfunctions_function" "function" {
 
 resource "google_cloud_asset_project_feed" "project_feed" {
   for_each     = var.project_children
-  project      = each.value
+  project      = each.value.name
   feed_id      = "asset-feed"
   content_type = "RESOURCE"
   feed_output_config {
@@ -126,7 +134,10 @@ resource "google_cloud_asset_project_feed" "project_feed" {
     "compute.googleapis.com/VpnGateway",
     "compute.googleapis.com/VpnTunnel"
   ]
-  depends_on = [google_pubsub_topic.pubsub_topic]
+  depends_on = [
+    google_pubsub_topic.pubsub_topic,
+    google_pubsub_topic_iam_member.member
+  ]
 }
 
 //grant service accent publisher access to core project

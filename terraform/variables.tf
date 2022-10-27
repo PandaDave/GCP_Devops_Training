@@ -20,5 +20,8 @@ variable "function_name" {
 }
 variable "project_children" {
   description = "Child projects"
-  type        = set(string)
+  type = map(object({
+    name           = string
+    project_number = number
+  }))
 }
